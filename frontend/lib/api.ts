@@ -73,6 +73,18 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   return (await res.json()) as CurrentUser;
 }
 
+async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
+  const token = getToken();
+  return fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: {
+      ...(init?.headers ?? {}),
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 // --- Preferences ---
 
 export type Preferences = {
@@ -94,18 +106,6 @@ export type PreferencesInput = {
   content_style: string | null;
 };
 
-async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
-  const token = getToken();
-  return fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      ...(init?.headers ?? {}),
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-}
-
 export async function getPreferences(): Promise<Preferences | null> {
   const res = await authedFetch("/preferences");
   if (!res.ok) return null;
@@ -123,4 +123,32 @@ export async function savePreferences(
     throw new Error("Failed to save preferences. Please try again.");
   }
   return (await res.json()) as Preferences;
+}
+
+// --- Feed ---
+
+export type Impact = "low" | "medium" | "high";
+
+export type FeedItem = {
+  id: string;
+  source: string;
+  title: string;
+  url: string;
+  summary: string;
+  why_matters: string;
+  impact: Impact;
+  tags: string[];
+  published_at: string;
+};
+
+export type FeedResponse = {
+  items: FeedItem[];
+  total: number;
+  personalized: boolean;
+};
+
+export async function getFeed(): Promise<FeedResponse | null> {
+  const res = await authedFetch("/feed");
+  if (!res.ok) return null;
+  return (await res.json()) as FeedResponse;
 }

@@ -3,12 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { getCurrentUser, getPreferences } from "@/lib/api";
+import { getCurrentUser, getPreferences, type Preferences } from "@/lib/api";
 import { OnboardingFlow } from "@/components/onboarding/onboarding-flow";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const [existing, setExisting] = useState<Preferences | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -19,13 +20,12 @@ export default function OnboardingPage() {
         router.replace("/login");
         return;
       }
-      // If already onboarded, skip straight to the dashboard.
+      // Load any existing preferences so the flow can pre-fill them (edit mode).
+      // We intentionally do NOT auto-skip onboarded users — this page doubles as
+      // "Edit interests". The dashboard layout guard handles un-onboarded users.
       const prefs = await getPreferences();
       if (!active) return;
-      if (prefs?.onboarded) {
-        router.replace("/dashboard");
-        return;
-      }
+      setExisting(prefs);
       setReady(true);
     })();
     return () => {
@@ -41,5 +41,5 @@ export default function OnboardingPage() {
     );
   }
 
-  return <OnboardingFlow />;
+  return <OnboardingFlow existing={existing} />;
 }

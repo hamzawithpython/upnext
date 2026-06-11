@@ -11,7 +11,7 @@ import {
   SKILL_LEVELS,
   TOOLS,
 } from "@/lib/onboarding-options";
-import { savePreferences } from "@/lib/api";
+import { savePreferences, type Preferences } from "@/lib/api";
 
 function toggle(list: string[], value: string): string[] {
   return list.includes(value)
@@ -42,17 +42,21 @@ function Chip({
   );
 }
 
-export function OnboardingFlow() {
+export function OnboardingFlow({ existing }: { existing?: Preferences | null }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [skillLevel, setSkillLevel] = useState<string | null>(null);
-  const [interests, setInterests] = useState<string[]>([]);
-  const [tools, setTools] = useState<string[]>([]);
-  const [goals, setGoals] = useState<string[]>([]);
-  const [contentStyle, setContentStyle] = useState<string | null>(null);
+  const [skillLevel, setSkillLevel] = useState<string | null>(
+    existing?.skill_level ?? null
+  );
+  const [interests, setInterests] = useState<string[]>(existing?.interests ?? []);
+  const [tools, setTools] = useState<string[]>(existing?.tools ?? []);
+  const [goals, setGoals] = useState<string[]>(existing?.goals ?? []);
+  const [contentStyle, setContentStyle] = useState<string | null>(
+    existing?.content_style ?? null
+  );
 
   const steps = [
     {
@@ -224,11 +228,7 @@ export function OnboardingFlow() {
                 disabled={!current.canProceed || saving}
                 className="rounded-xl bg-brand px-6 py-3 font-medium text-white transition hover:opacity-90 disabled:opacity-40"
               >
-                {saving
-                  ? "Saving..."
-                  : isLast
-                    ? "Finish"
-                    : "Continue"}
+                {saving ? "Saving..." : isLast ? "Finish" : "Continue"}
               </button>
             </div>
           </motion.div>
