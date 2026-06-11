@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { getPreferences } from "@/lib/api";
+
 type AuthFormProps = {
   mode: "login" | "signup";
   action: (email: string, password: string) => Promise<void>;
@@ -34,7 +36,9 @@ export function AuthForm({ mode, action }: AuthFormProps) {
     setLoading(true);
     try {
       await action(email, password);
-      router.push("/dashboard");
+      // Route based on onboarding status: new users onboard first.
+      const prefs = await getPreferences();
+      router.push(prefs?.onboarded ? "/dashboard" : "/onboarding");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
