@@ -4,7 +4,15 @@ from typing import Literal
 from pydantic import BaseModel
 
 Impact = Literal["low", "medium", "high"]
-Source = Literal["github", "arxiv", "reddit", "hackernews", "news", "producthunt"]
+Source = Literal[
+    "github",
+    "arxiv",
+    "reddit",
+    "hackernews",
+    "huggingface",
+    "news",
+    "producthunt",
+]
 
 
 class FeedItem(BaseModel):
