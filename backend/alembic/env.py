@@ -11,6 +11,7 @@ from app.db.session import Base
 # Import all models here so they register on Base.metadata before autogenerate.
 from app.models.user import User  # noqa: F401
 from app.models.preferences import UserPreferences  # noqa: F401
+from app.models.feed_item import FeedItemModel  # noqa: F401
 
 # Alembic Config object (reads alembic.ini).
 config = context.config
