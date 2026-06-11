@@ -1,0 +1,8 @@
+"use client";
+
+import { AuthForm } from "@/components/auth/auth-form";
+import { signup } from "@/lib/api";
+
+export default function SignupPage() {
+  return <AuthForm mode="signup" action={signup} />;
+}
