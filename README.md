@@ -1,6 +1,6 @@
 # UpNext — The Daily Operating System for AI Engineers
 
-> An AI-native intelligence platform that filters, ranks, and summarizes the latest in AI engineering — so professionals stay ahead without drowning in Twitter/X, Reddit, GitHub, and newsletters.
+> An AI-native intelligence platform that ingests, filters, ranks, and summarizes the latest in AI engineering — so professionals stay ahead without drowning in Twitter/X, Reddit, GitHub, and newsletters.
 
 **🔗 Live demo:** https://frontend-one-wheat-dw5aauswjr.vercel.app/
 
@@ -8,23 +8,23 @@
 
 ## The Problem
 
-AI engineers lose hours every week scattered across X, Reddit, Hacker News, GitHub trending, and arXiv trying to keep up with a field that moves daily. The signal-to-noise ratio is brutal. UpNext collapses all of that into one personalized, ranked, summarized feed — a daily habit instead of a daily scramble.
+AI engineers lose hours every week scattered across Hacker News, arXiv, GitHub trending, and HuggingFace trying to keep up with a field that moves daily. The signal-to-noise ratio is brutal. UpNext collapses all of that into one personalized, ranked, AI-summarized feed — a daily habit instead of a daily scramble.
 
-This is **not** a news aggregator or a chatbot wrapper. It's a personalized intelligence layer: collect → filter → rank → summarize → personalize.
+This is **not** a news aggregator or a chatbot wrapper. It's a personalized intelligence layer: ingest → dedup → summarize → rank → personalize.
 
 ---
 
-## Status
+## Status — MVP complete
 
-🚧 In active development, built in versioned phases.
+Built end-to-end in seven versioned phases, each its own feature branch merged to a always-deployable `main`.
 
-- ✅ **Phase 1** — Landing page + design system, deployed live on Vercel.
-- ✅ **Phase 2** — JWT authentication: FastAPI backend (signup/login/protected routes) + Next.js login/signup pages + protected dashboard.
-- ⬜ Phase 3 — AI engineer onboarding + preferences
-- ⬜ Phase 4 — Dashboard + personalized feed (mock data)
-- ⬜ Phase 5 — Feed/preferences APIs + full Postgres integration
-- ⬜ Phase 6 — AI summaries + assistant (Groq)
-- ⬜ Phase 7 — Real ingestion pipelines + ranking, polish, final deploy
+- ✅ **Phase 1** — Landing page + design system, deployed on Vercel.
+- ✅ **Phase 2** — JWT authentication: FastAPI backend (signup/login/protected routes) + Next.js auth pages + protected dashboard.
+- ✅ **Phase 3** — AI engineer onboarding: multi-step preference capture persisted to `user_preferences`, with routing guards.
+- ✅ **Phase 4** — Personalized feed UI: ranked feed cards served from a `/feed` endpoint, ranked by tag-overlap with the user's preferences.
+- ✅ **Phase 5** — Postgres-backed feed: a `feed_items` table + idempotent seed replace the in-memory mock list. Frontend untouched (the API contract held).
+- ✅ **Phase 6** — AI layer (Groq): LLM-generated summaries (structured JSON) and a streaming assistant chat grounded in user preferences.
+- ✅ **Phase 7** — Multi-source ingestion: a pipeline pulling from Hacker News, arXiv, GitHub, and HuggingFace, orchestrated on a schedule by an n8n workflow.
 
 ---
 
@@ -34,30 +34,41 @@ This is **not** a news aggregator or a chatbot wrapper. It's a personalized inte
 |---|---|
 | Frontend | Next.js 16 (App Router), TypeScript, TailwindCSS v4, Framer Motion |
 | Backend | FastAPI (Python 3.12), SQLAlchemy 2.0, Alembic |
-| Database | PostgreSQL (Neon, with pgvector planned) |
-| Auth | JWT (PyJWT) + bcrypt password hashing |
-| AI (Phase 6+) | Groq — Llama 3.3 70B, free-tier inference |
-| Hosting | Vercel (frontend), Render (backend, planned), Neon (DB) |
+| Database | PostgreSQL (Neon) |
+| Auth | JWT (PyJWT) + bcrypt |
+| AI | Groq — Llama 3.3 70B, free-tier inference |
+| Ingestion sources | Hacker News, arXiv, GitHub, HuggingFace |
+| Orchestration | n8n (scheduled trigger → ingestion endpoint) |
+| Hosting | Vercel (frontend), Neon (DB); backend runs locally |
 
 ---
 
 ## Architecture
 
-Decoupled monolith — two independent deployables, no premature microservices:
+Decoupled monolith — clean separation, no premature microservices:
 
 ```
-Next.js 16 (Vercel)  ⇄  FastAPI (Render)  ⇄  PostgreSQL (Neon)
-   presentation          auth + AI + API       data + vectors
+Next.js 16 (Vercel)  ⇄  FastAPI  ⇄  PostgreSQL (Neon)
+   presentation         auth · feed · AI · ingest
+
+         n8n (every 6h)
+              │  POST /ingest  (shared-secret auth)
+              ▼
+      FastAPI ingestion pipeline
+        ├─ fetch: Hacker News · arXiv · GitHub · HuggingFace
+        ├─ normalize → common RawItem shape
+        ├─ dedup against feed_items (by source + external id)
+        ├─ summarize new items with Groq (structured JSON)
+        └─ insert into Postgres → surfaces in the feed
 ```
 
-The AI layer (Groq calls) runs server-side only — API keys never reach the browser. The schema is shaped from day one for pgvector-based personalization in later phases without rework.
+**Design split:** n8n owns scheduling/orchestration; FastAPI owns fetching, normalization, dedup, AI summarization, and storage. Source auth and parsing stay in Python (one `.env`, testable), while the automation layer stays simple. Adding a source means writing one fetcher that returns `RawItem`s — nothing else in the pipeline changes.
 
 ### Auth flow
+Signup/login hit FastAPI, which hashes the password (bcrypt) and issues a signed JWT. The frontend stores the token and sends it as a `Bearer` header; `/auth/me` resolves it. The dashboard guards client-side and redirects unauthenticated or un-onboarded users.
 
-1. Signup/login hit FastAPI, which hashes the password (bcrypt) and issues a signed JWT.
-2. The frontend stores the token and sends it as a `Bearer` header on protected calls.
-3. `GET /auth/me` resolves the token to a user; protected routes 401 without a valid token.
-4. The Next.js dashboard guards client-side by calling `/auth/me` on mount and redirecting unauthenticated users to `/login`.
+### Personalization
+Tag-overlap ranking: feed items are scored by how many of their tags intersect the user's interests + tools, tie-broken by impact then recency. The schema is shaped for a future pgvector similarity upgrade without rework.
 
 ---
 
@@ -67,44 +78,57 @@ The AI layer (Groq calls) runs server-side only — API keys never reach the bro
 # --- Backend ---
 cd backend
 python -m venv venv
-.\venv\Scripts\Activate.ps1        # Windows PowerShell
+.\venv\Scripts\Activate.ps1            # Windows PowerShell
 pip install -r requirements.txt
-# Create backend/.env from .env.example (DATABASE_URL, JWT_SECRET)
-alembic upgrade head               # run migrations against Neon
-uvicorn app.main:app --reload      # http://127.0.0.1:8000  (docs at /docs)
+# Create backend/.env from .env.example (DATABASE_URL, JWT_SECRET, GROQ_API_KEY,
+# GITHUB_TOKEN, HF_TOKEN, INGEST_SECRET, ...)
+alembic upgrade head                   # run migrations
+python -m app.seed_feed                # seed initial feed items
+uvicorn app.main:app --reload          # http://127.0.0.1:8000  (docs at /docs)
 
 # --- Frontend ---
 cd frontend
 pnpm install
-# Create frontend/.env.local with: NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
-pnpm dev                           # http://localhost:3000
+# Create frontend/.env.local: NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+pnpm dev                               # http://localhost:3000
+
+# --- Ingestion (n8n) ---
+# Import backend/n8n/upnext-ingestion.workflow.json into n8n.
+# It POSTs to host.docker.internal:8000/ingest on a schedule with the
+# x-ingest-secret header. Run the backend on the host for it to reach.
 ```
 
 ---
 
 ## Technical Decisions
 
-- **PyJWT instead of python-jose** — FastAPI's docs moved to PyJWT and python-jose is effectively unmaintained (no release in ~3 years). PyJWT is actively maintained and is what Neon's own FastAPI auth guide uses.
-- **Groq instead of OpenAI** — OpenAI-SDK-compatible (drop-in via a custom base URL) but with a zero-cost free tier, keeping the MVP at $0 without changing application code.
-- **Two deployables, not microservices** — a clean monolith respects the "don't over-engineer" constraint while keeping the Python AI layer where the strongest skills are.
-- **Neon over Supabase** — serverless Postgres with native `pgvector` and branching, without bundling an auth/storage product the app doesn't use (FastAPI owns auth).
-- **Dual login endpoints** — a JSON `/auth/login` for the frontend and an OAuth2 form `/auth/token` so the Swagger `/docs` Authorize button works for manual API testing.
-- **bcrypt pinned to 4.0.x** — passlib hasn't been updated for bcrypt 4.1+, which otherwise throws a version-read error.
+- **PyJWT, not python-jose** — python-jose is effectively unmaintained; PyJWT is current and is what FastAPI's docs and Neon's guides use.
+- **Groq, not OpenAI** — OpenAI-SDK-compatible but with a free tier, keeping the project at $0. `GROQ_MODEL` is a config value, not hardcoded, because Groq rotates/deprecates models frequently — a deprecation is a one-line `.env` change.
+- **Two deployables, not microservices** — a clean monolith respecting the no-over-engineering constraint, keeping the Python AI layer where the strongest skills are.
+- **Neon over Supabase** — serverless Postgres with branching and native pgvector, without an auth/storage product the app doesn't use.
+- **n8n orchestrates, FastAPI processes** — the automation tool handles scheduling; OAuth flows, source parsing, and LLM calls stay in Python where they're testable and keys live in one place.
+- **Dual login endpoints** — JSON `/auth/login` for the frontend and an OAuth2 form `/auth/token` so the Swagger Authorize button works.
+- **Structured JSON LLM output + resilience** — summaries use Groq's JSON mode, with a retry-then-fallback so a single malformed response never crashes a batch ingestion run.
+- **Preferences/tags as Postgres arrays** — simpler than join tables for a fixed tag vocabulary with no per-tag relational queries.
 
-### Security note (known tradeoff)
-
-The MVP stores the JWT in `localStorage` and guards protected routes client-side. This is simple and fine for a portfolio demo, but `localStorage` is readable by XSS and client-side guards don't protect server-rendered data. A production hardening path: move the token to an httpOnly cookie and enforce protection in Next.js middleware. Documented here deliberately rather than hidden.
+### Security notes (known tradeoffs)
+- JWT is stored in `localStorage` and routes are guarded client-side — fine for an MVP, but XSS-readable. Production hardening: httpOnly cookies + middleware-enforced protection.
+- The `/ingest` endpoint uses a shared-secret header (machine-to-machine), not user JWT, since n8n isn't a logged-in user.
+- X (Twitter) ingestion was scoped out — no usable free API tier as of 2026. Reddit was deferred due to API-app-creation friction. Both fit the pluggable source model whenever added.
 
 ---
 
 ## What Didn't Work / Lessons
 
-- **PowerShell here-strings mangle JSX/nested quotes** — escaped quotes and `>` chars get corrupted or save empty files. Author multi-line code in the editor or via clean file transfer, never through `@"..."@`.
-- **PowerShell `Out-File` encoding** — default UTF-8 writes a BOM; `-Encoding ascii` keeps bytes clean.
-- **pnpm v11 blocks build scripts by default** — `sharp`, `esbuild`, `unrs-resolver` need explicit `pnpm approve-builds`.
-- **Neon connection strings** — use the **direct** (non-pooled) string for Alembic migrations; the pooled host can break them.
-- **Swagger Authorize ≠ JSON login** — the OAuth2 Authorize button posts form-encoded data, incompatible with a JSON-body login endpoint; needed a separate `/auth/token` form endpoint.
-- **`NEXT_PUBLIC_` env vars load only at dev-server startup** — creating `.env.local` while `pnpm dev` is already running yields `undefined` and a "Failed to fetch"; restart required.
+- **A backend 500 strips CORS headers**, so the browser reports a "blocked by CORS policy" error even when CORS is fine. Chased CORS for two rounds when the real cause was a Pydantic validation error (`/feed` 500'd because the `Source` literal was missing `"huggingface"`). Lesson: when you see CORS errors but the server is up, check the backend terminal for a 500 first.
+- **LLM JSON mode is not a guarantee** — Groq occasionally emitted invalid JSON (unquoted string values), 500-ing the whole ingestion batch. Batch jobs calling an LLM per item need per-item error isolation plus a retry/fallback.
+- **Swagger's example bodies corrupt real data** — running a `PUT` from the `/docs` example writes the literal `"string"` into the record; this silently wiped a test user's preferences and surfaced later as the assistant "not knowing" the user.
+- **`host.docker.internal`** is how a container (n8n) reaches a service on the host (FastAPI); `127.0.0.1` inside a container means the container itself. Also watch for **port collisions** between projects — another container already held port 8000.
+- **PowerShell here-strings mangle JSX/nested quotes** and silently write empty files; author code via clean file transfer. `Out-File` defaults to a BOM — use `-Encoding ascii`.
+- **pnpm v11 blocks build scripts by default** (`sharp`, `esbuild`, `unrs-resolver`) — needs `pnpm approve-builds`.
+- **Neon: use the direct (non-pooled) connection string for Alembic.**
+- **arXiv requires https + follow_redirects; GitHub search syntax is picky** — OR'd topic qualifiers with a date floor returned 422; a free-text query with `pushed:>` and `stars:>` works.
+- **`NEXT_PUBLIC_` env vars load only at dev-server startup** — created while `pnpm dev` runs, they read `undefined`.
 
 ---
 
@@ -112,28 +136,25 @@ The MVP stores the JWT in `localStorage` and guards protected routes client-side
 
 ```
 upnext/
-├── frontend/                  # Next.js 16 app
-│   ├── app/
-│   │   ├── (landing)          # marketing homepage
-│   │   ├── login/ signup/     # auth pages
-│   │   └── dashboard/         # protected route group
-│   ├── components/
-│   │   ├── marketing/         # landing sections
-│   │   └── auth/              # shared auth form
-│   └── lib/                   # api client, cn() utility
+├── frontend/                  # Next.js 16
+│   ├── app/                   # landing, login, signup, onboarding, dashboard
+│   ├── components/            # marketing, auth, feed, assistant
+│   └── lib/                   # api client, utils
 └── backend/                   # FastAPI
     ├── app/
-    │   ├── core/              # config, security (JWT, hashing)
-    │   ├── models/            # SQLAlchemy models
-    │   ├── schemas/           # Pydantic schemas
-    │   ├── routers/           # auth endpoints
-    │   ├── db/                # session + Base
-    │   └── deps.py            # get_current_user dependency
-    └── alembic/               # migrations
+    │   ├── core/              # config, security
+    │   ├── models/            # users, preferences, feed_items
+    │   ├── schemas/           # pydantic
+    │   ├── routers/           # auth, preferences, feed, assistant, ingest
+    │   ├── services/          # groq_service
+    │   ├── ingestion/         # types + per-source fetchers + pipeline
+    │   └── db/
+    ├── alembic/               # migrations
+    └── n8n/                   # exported ingestion workflow
 ```
 
 ---
 
 ## Roadmap
 
-Personalization grows from simple tag-overlap filtering to vector-similarity ranking over pgvector, once real ingestion from GitHub, arXiv, Reddit, and Hacker News is in place. The architecture supports expansion to other professional niches later, but the MVP is focused exclusively on AI engineers.
+Personalization can move from tag-overlap to vector similarity over pgvector. Additional sources (Reddit, X, Product Hunt) plug into the existing pipeline. The architecture supports expansion to other professional niches, but the MVP is focused on AI engineers.
