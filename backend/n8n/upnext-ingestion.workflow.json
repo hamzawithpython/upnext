@@ -29,7 +29,7 @@
           "parameters": [
             {
               "name": "x-ingest-secret",
-              "value": "fdf023e1ec5654417265c716e5e7613c"
+              "value": "YOUR_INGEST_SECRET"
             }
           ]
         },
@@ -67,7 +67,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "dd76fe87-430e-4fdd-9fbc-569e96fb9b85",
+  "versionId": "65234743-5471-4e16-b189-c1073a3311f1",
   "meta": {
     "instanceId": "feddd20a06f3f583b8a4b677260ef9430851629f74097d296fdaa301e5136807"
   },
