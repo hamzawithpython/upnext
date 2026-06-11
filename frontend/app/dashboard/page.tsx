@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { FeedCard } from "@/components/feed/feed-card";
 import { FeedSkeleton } from "@/components/feed/feed-skeleton";
+import { AssistantPanel } from "@/components/assistant/assistant-panel";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -93,6 +94,8 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      <AssistantPanel />
     </main>
   );
 }

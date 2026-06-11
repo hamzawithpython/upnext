@@ -152,3 +152,39 @@ export async function getFeed(): Promise<FeedResponse | null> {
   if (!res.ok) return null;
   return (await res.json()) as FeedResponse;
 }
+
+// --- Assistant (streaming) ---
+
+export type ChatMessage = { role: "user" | "assistant"; content: string };
+
+/**
+ * Streams an assistant reply. Calls onChunk for each text delta as it arrives,
+ * enabling a live "typing" effect. Resolves when the stream completes.
+ */
+export async function streamAssistant(
+  messages: ChatMessage[],
+  onChunk: (text: string) => void
+): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/assistant`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ messages }),
+  });
+
+  if (!res.ok || !res.body) {
+    throw new Error("The assistant is unavailable right now.");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    onChunk(decoder.decode(value, { stream: true }));
+  }
+}
