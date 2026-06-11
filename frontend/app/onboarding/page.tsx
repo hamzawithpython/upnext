@@ -4,14 +4,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { getCurrentUser, getPreferences } from "@/lib/api";
+import { OnboardingFlow } from "@/components/onboarding/onboarding-flow";
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function OnboardingPage() {
   const router = useRouter();
-  const [checking, setChecking] = useState(true);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -22,21 +19,21 @@ export default function DashboardLayout({
         router.replace("/login");
         return;
       }
-      // Gate the dashboard behind completed onboarding.
+      // If already onboarded, skip straight to the dashboard.
       const prefs = await getPreferences();
       if (!active) return;
-      if (!prefs?.onboarded) {
-        router.replace("/onboarding");
+      if (prefs?.onboarded) {
+        router.replace("/dashboard");
         return;
       }
-      setChecking(false);
+      setReady(true);
     })();
     return () => {
       active = false;
     };
   }, [router]);
 
-  if (checking) {
+  if (!ready) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-brand" />
@@ -44,5 +41,5 @@ export default function DashboardLayout({
     );
   }
 
-  return <>{children}</>;
+  return <OnboardingFlow />;
 }
